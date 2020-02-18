@@ -4,7 +4,6 @@ from gym import spaces
 
 
 DENOMINATOR = 100.0
-EPS = 1e-9
 
 
 class MachineProductionEnv(gym.Env):
@@ -16,8 +15,8 @@ class MachineProductionEnv(gym.Env):
                  detail_tree):
 
         super(MachineProductionEnv, self).__init__()
-        self.machine_detail_time = machine_detail_time / DENOMINATOR
-        self.detail_tree = detail_tree / DENOMINATOR
+        self.machine_detail_time = machine_detail_time
+        self.detail_tree = detail_tree
 
         self.d_count = machine_detail_time.shape[0]
         self.m_count = machine_detail_time.shape[1]
@@ -32,13 +31,13 @@ class MachineProductionEnv(gym.Env):
     def reset(self):
         # Reset the state of the environment to an initial state
         self.current_step = 0
-        self.produced = np.zeros((self.d_count), dtype=np.float32)
-        self.needed = np.zeros((self.d_count), dtype=np.float32)
-        self.scheduled_for = np.zeros((self.m_count), dtype=np.float32)
+        self.produced = np.zeros((self.d_count), dtype=np.int)
+        self.needed = np.zeros((self.d_count), dtype=np.int)
+        self.scheduled_for = np.zeros((self.m_count), dtype=np.int)
         self.detail_line = []
-        self.machine_busy = np.zeros((self.m_count,), dtype=np.float32)
+        self.machine_busy = np.zeros((self.m_count,), dtype=np.int)
 
-        self.needed[0] = 1.0/DENOMINATOR  # TODO: Read this from file
+        self.needed[0] = 1  # TODO: Read this from file
         self.cumulative_reward = 0
 
         return self._next_observation()
@@ -48,7 +47,7 @@ class MachineProductionEnv(gym.Env):
                               self.needed,
                               self.machine_busy])
 
-        return obs
+        return obs.astype(np.float32) / DENOMINATOR
 
     def step(self, action):
         reward = -5  # Penalty for time
@@ -57,7 +56,7 @@ class MachineProductionEnv(gym.Env):
 
         self.current_step += 1
 
-        done = (self.needed - EPS <= self.produced).all()
+        done = (self.needed <= self.produced).all()
         if done:
             reward += 1000
         obs = self._next_observation()
@@ -70,7 +69,7 @@ class MachineProductionEnv(gym.Env):
             if detail_id == 0:
                 continue
             detail_id -= 1
-            if self.machine_busy[machine_id] > EPS:
+            if self.machine_busy[machine_id]:
                 reward -= 1
                 continue
             if (self.detail_tree[detail_id] > self.produced).any():
@@ -89,15 +88,15 @@ class MachineProductionEnv(gym.Env):
         return reward
 
     def _produce(self):
-        self.scheduled_for -= self.machine_busy / DENOMINATOR
+        self.scheduled_for -= self.machine_busy
 
         new_detail_line = []
         for ttc, detail_id, machine_id in self.detail_line:
-            if (ttc - 1/DENOMINATOR) < EPS:
+            if ttc == 1:
                 self.machine_busy[machine_id] = 0
-                self.produced[detail_id] += 1 / DENOMINATOR
+                self.produced[detail_id] += 1
             else:
-                new_detail_line.append([ttc-1/DENOMINATOR, detail_id, machine_id])
+                new_detail_line.append([ttc - 1, detail_id, machine_id])
 
         self.detail_line = new_detail_line
 
