@@ -42,14 +42,15 @@ def play(train=True):
     model = PPO2(policy="MlpPolicy",
                 env=env,
                 tensorboard_log="tb_log",
-                ent_coef=0.0,
-                n_steps=300,
-                nminibatches=20,
+                ent_coef=0.1,
+                n_steps=2048,
+                nminibatches=32,
                 noptepochs=10,
                 learning_rate=0.0003,
                 cliprange=0.2,
-                gamma=0.99,
-                verbose=1)
+                gamma=0.998,
+                verbose=1,
+                policy_kwargs={"net_arch": [64, 64, 32, 16, 16, 16]})
 
     def test(model):
         for trial in range(10):
@@ -57,7 +58,7 @@ def play(train=True):
             running_reward = 0.0
             alpha = 0.01
 
-            for _ in range(500):
+            for _ in range(5000):
                 action, _states = model.predict(obs)
                 obs, reward, done, info = env.step(action)
                 env.render()
@@ -70,10 +71,10 @@ def play(train=True):
 
     if train:
         for i in range(1):
-            model.learn(total_timesteps=1000_000, log_interval=10)
+            model.learn(total_timesteps=100_000, log_interval=10)
             model.save(f'models/machine_{i}.bin')
 
-    #model = PPO2.load('models/machine_.bin')
+    model = PPO2.load('models/machine_0.bin')
     test(model)
 
 
