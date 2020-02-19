@@ -38,10 +38,6 @@ class MachineProductionEnv(gym.Env):
         self.estimated_time = (detail_time_min * e_diff).sum() / self.m_count
         # TODO: Add running reward shift
 
-    def _estimate_time(self):
-        self._make_estimates()
-        return self.estimated_time
-
     def reset(self):
         # Reset the state of the environment to an initial state
         self.current_step = 0
@@ -56,6 +52,7 @@ class MachineProductionEnv(gym.Env):
         self.needed[2] = np.random.randint(1, 9)  # TODO: Read this from file
         for i in range(1, 3):
             self.produced[i] = np.random.randint(self.needed[i])  # TODO: Read this from file
+        self._make_estimates()
         print('reset', self.needed, self.produced)
         self.proximity_points = self._calculate_points()
         self.cumulative_reward = 0
@@ -89,7 +86,7 @@ class MachineProductionEnv(gym.Env):
             print('done',
                   self.current_step,
                   self.cumulative_reward,
-                  self._estimate_time())
+                  self.estimated_time)
         obs = self._next_observation()
         self.cumulative_reward += reward
         return obs, reward, done, {"cumulative_reward": self.cumulative_reward}
@@ -168,9 +165,6 @@ class MachineProductionEnv(gym.Env):
             one_point = int(STARTING_POINTS * DISCOUNT**level[i])
             scores += made_ok[i] * one_point
             scores -= int((overmade[i])**1.0 * one_point)
-            #if i == 0 and produced[i] == 1:
-                #import ipdb; ipdb.set_trace()
-                #print("")
 
 
         return scores
