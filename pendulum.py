@@ -60,7 +60,7 @@ def play(train=True):
 
     def test(model):
         env = DummyVecEnv([make_env] * n_env)
-#        env = VecNormalize.load("models/machine_span_env.bin", venv=env)
+        env = VecNormalize.load("models/machine_span_env.bin", venv=env)
         for trial in range(10):
             obs = env.reset()
             running_reward = 0.0
