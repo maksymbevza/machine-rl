@@ -59,7 +59,8 @@ def play(train=True):
                 })
 
     def test(model):
-        env = DummyVecEnv([make_env])
+        env = DummyVecEnv([make_env] * n_env)
+#        env = VecNormalize.load("models/machine_span_env.bin", venv=env)
         for trial in range(10):
             obs = env.reset()
             running_reward = 0.0
@@ -68,6 +69,9 @@ def play(train=True):
             for _ in range(5000):
                 action, _states = model.predict(obs)
                 obs, reward, done, info = env.step(action)
+                reward = reward[0]
+                done = done[0]
+                info = info[0]
                 #running_reward = running_reward * (1-alpha) + alpha * reward
                 running_reward += reward
                 #print(obs, reward, done, info, running_reward)
@@ -75,25 +79,27 @@ def play(train=True):
                     print("Finished after {} timesteps".format(_+1))
                     break
                 else:
-                    env.render()
+                    env.envs[0].render()
 
 
     if train:
         try:
             model.learn(total_timesteps=10_000_000, log_interval=10)
         except KeyboardInterrupt:
-            model.save("models/machine_snap.bin")
+            model.save("models/machine_snap_model.bin")
+            env.save("models/machine_snap_env.bin")
             raise
-        model.save(f'models/machine_{i}.bin')
+        model.save(f'models/machine_0_model.bin')
+        env.save(f'models/machine_0_env.bin')
 
-    model = PPO2.load('models/machine_0.bin')
+    model = PPO2.load('models/machine_snap_model.bin')
     test(model)
 
 
 def main():
     logger.configure()
     #train()
-    play(train=True)
+    play(train=False)
 
 
 if __name__ == '__main__':
