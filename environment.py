@@ -26,20 +26,24 @@ class MachineProductionEnv(gym.Env):
         self.observation_space = spaces.Box(
             low=0,
             high=1,  #TODO: Fix high to dynamic
-            shape=(self.d_count*2 + self.m_count,),
-            dtype=int)
+            shape=(self.d_count*2 + self.m_count*self.d_count,),
+            dtype=float)
 
     def reset(self):
-        print('reset')
         # Reset the state of the environment to an initial state
         self.current_step = 0
         self.produced = np.zeros((self.d_count), dtype=np.int)
         self.needed = np.zeros((self.d_count), dtype=np.int)
         self.scheduled_for = np.zeros((self.m_count), dtype=np.int)
         self.detail_line = []
-        self.machine_busy = np.zeros((self.m_count,), dtype=np.int)
+        self.machine_busy = np.zeros((self.m_count, self.d_count), dtype=np.int)
 
-        self.needed[0] = 1  # TODO: Read this from file
+        #self.needed[0] = np.random.randint(1, 3)  # TODO: Read this from file
+        self.needed[1] = np.random.randint(1, 6)  # TODO: Read this from file
+        self.needed[2] = np.random.randint(1, 9)  # TODO: Read this from file
+        for i in range(1, 3):
+            self.produced[i] = np.random.randint(self.needed[i])  # TODO: Read this from file
+        print('reset', self.needed, self.produced)
         self.proximity_points = self._calculate_points()
         self.cumulative_reward = 0
 
@@ -48,7 +52,7 @@ class MachineProductionEnv(gym.Env):
     def _next_observation(self):
         obs = np.concatenate([self.produced,
                               self.needed,
-                              self.machine_busy])
+                              self.machine_busy.reshape(-1)])
 
         return obs.astype(np.float32) / DENOMINATOR
 
@@ -69,6 +73,7 @@ class MachineProductionEnv(gym.Env):
         done = (self.needed <= self.produced).all()
         if done:
             reward += 1000
+            print('done', self.current_step, self.cumulative_reward)
         obs = self._next_observation()
         self.cumulative_reward += reward
         return obs, reward, done, {"cumulative_reward": self.cumulative_reward}
@@ -79,7 +84,7 @@ class MachineProductionEnv(gym.Env):
             if detail_id == 0:
                 continue
             detail_id -= 1
-            if self.machine_busy[machine_id]:
+            if self.machine_busy.sum(1)[machine_id]:
                 reward -= 1
                 continue
             if (self.detail_tree[detail_id] > self.produced).any():
@@ -90,7 +95,7 @@ class MachineProductionEnv(gym.Env):
 
 #            reward += 1
             ttc = self.machine_detail_time[detail_id, machine_id]
-            self.machine_busy[machine_id] = 1
+            self.machine_busy[machine_id, detail_id] = 1
             self.scheduled_for[machine_id] = ttc
             self.detail_line.append([ttc,
                                      detail_id,
@@ -98,12 +103,12 @@ class MachineProductionEnv(gym.Env):
         return reward
 
     def _produce(self):
-        self.scheduled_for -= self.machine_busy
+        self.scheduled_for -= self.machine_busy.sum(1)
 
         new_detail_line = []
         for ttc, detail_id, machine_id in self.detail_line:
             if ttc == 1:
-                self.machine_busy[machine_id] = 0
+                self.machine_busy[machine_id, :] = 0
                 self.produced[detail_id] += 1
             else:
                 new_detail_line.append([ttc - 1, detail_id, machine_id])
@@ -122,7 +127,7 @@ class MachineProductionEnv(gym.Env):
 
     def _calculate_points(self):
         STARTING_POINTS = 100
-        DISCOUNT = 0.3
+        DISCOUNT = 0.7
 
         needed = copy.deepcopy(self.needed)
         produced = copy.deepcopy(self.produced)
@@ -146,7 +151,7 @@ class MachineProductionEnv(gym.Env):
         for i in range(self.d_count):
             one_point = int(STARTING_POINTS * DISCOUNT**level[i])
             scores += made_ok[i] * one_point
-            scores -= overmade[i] * one_point
+            scores -= int((overmade[i])**1.0 * one_point)
             #if i == 0 and produced[i] == 1:
                 #import ipdb; ipdb.set_trace()
                 #print("")
