@@ -29,6 +29,19 @@ class MachineProductionEnv(gym.Env):
             shape=(self.d_count*2 + self.m_count*self.d_count,),
             dtype=float)
 
+    def _make_estimates(self):
+        e_needed = self._extend_details(self.needed)
+        e_produced = self._extend_details(self.produced)
+        e_diff = (e_needed - e_produced).clip(min=0)
+
+        detail_time_min = self.machine_detail_time.min(1)
+        self.estimated_time = (detail_time_min * e_diff).sum() / self.m_count
+        # TODO: Add running reward shift
+
+    def _estimate_time(self):
+        self._make_estimates()
+        return self.estimated_time
+
     def reset(self):
         # Reset the state of the environment to an initial state
         self.current_step = 0
@@ -73,7 +86,10 @@ class MachineProductionEnv(gym.Env):
         done = (self.needed <= self.produced).all()
         if done:
             reward += 1000
-            print('done', self.current_step, self.cumulative_reward)
+            print('done',
+                  self.current_step,
+                  self.cumulative_reward,
+                  self._estimate_time())
         obs = self._next_observation()
         self.cumulative_reward += reward
         return obs, reward, done, {"cumulative_reward": self.cumulative_reward}
@@ -158,3 +174,9 @@ class MachineProductionEnv(gym.Env):
 
 
         return scores
+
+    def _extend_details(self, details):
+        details = copy.deepcopy(details)
+        for i in range(self.d_count):
+            details += self.detail_tree[i] * details[i]
+        return details
