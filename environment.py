@@ -35,7 +35,7 @@ class MachineProductionEnv(gym.Env):
         e_diff = (e_needed - e_produced).clip(min=0)
 
         detail_time_min = self.machine_detail_time.min(1)
-        self.estimated_time = (detail_time_min * e_diff).sum() / self.m_count
+        self.estimated_time = (detail_time_min * e_diff).sum()
         # TODO: Add running reward shift
 
     def reset(self):
@@ -47,13 +47,16 @@ class MachineProductionEnv(gym.Env):
         self.detail_line = []
         self.machine_busy = np.zeros((self.m_count, self.d_count), dtype=np.int)
 
-        #self.needed[0] = np.random.randint(1, 3)  # TODO: Read this from file
-        self.needed[1] = np.random.randint(1, 6)  # TODO: Read this from file
-        self.needed[2] = np.random.randint(1, 9)  # TODO: Read this from file
-        for i in range(1, 3):
-            self.produced[i] = np.random.randint(self.needed[i])  # TODO: Read this from file
-        self._make_estimates()
-        print('reset', self.needed, self.produced)
+        self.estimated_time = 0
+        while not (400 < self.estimated_time < 600):
+            print('reset not success', self.estimated_time)
+            #self.needed[0] = np.random.randint(1, 3)  # TODO: Read this from file
+            self.needed[1] = np.random.randint(1, 6)  # TODO: Read this from file
+            self.needed[2] = np.random.randint(1, 9)  # TODO: Read this from file
+            for i in range(1, 3):
+                self.produced[i] = np.random.randint(self.needed[i])  # TODO: Read this from file
+            self._make_estimates()
+        print('reset', self.needed, self.produced, self.estimated_time)
         self.proximity_points = self._calculate_points()
         self.cumulative_reward = 0
 
@@ -67,8 +70,9 @@ class MachineProductionEnv(gym.Env):
         return obs.astype(np.float32) / DENOMINATOR
 
     def step(self, action):
-        reward = -5  # Penalty for time
+        reward = -5 / (self.estimated_time / 100)  # Penalty for time
         reward += self._take_action(action)
+        old_produced = list(self.produced)
         self._produce()
 
         new_points = self._calculate_points()
@@ -139,11 +143,12 @@ class MachineProductionEnv(gym.Env):
         print(f'Proximity Points: {self.proximity_points}')
 
     def _calculate_points(self):
-        STARTING_POINTS = 100
-        DISCOUNT = 0.7
+        level_price = [10, 8, 6, 4, 2]
 
         needed = copy.deepcopy(self.needed)
         produced = copy.deepcopy(self.produced)
+        for _, d, m in self.detail_line:
+            produced[d] += 1
         for i in range(self.d_count):
             needed += self.detail_tree[i] * needed[i]
             produced += self.detail_tree[i] * produced[i]
@@ -162,7 +167,7 @@ class MachineProductionEnv(gym.Env):
         scores = 0
         made_ok = np.min([needed, produced], axis=0)
         for i in range(self.d_count):
-            one_point = int(STARTING_POINTS * DISCOUNT**level[i])
+            one_point = level_price[level[i]]
             scores += made_ok[i] * one_point
             scores -= int((overmade[i])**1.0 * one_point)
 

@@ -24,7 +24,8 @@ def make_env():
     machine_detail = read_machine_detail("data/machine_detail.txt")
     detail_tree = read_detail_tree("data/detail_tree.txt",
                                    machine_detail.shape[0])
-    env = MachineProductionEnv(machine_detail, detail_tree)
+    #env = MachineProductionEnv(machine_detail, detail_tree)
+    env = gym.make('LunarLander-v2')
     env = TimeLimit(env, 2000)
     return env
 
@@ -36,31 +37,32 @@ def play(train=True):
                             inter_op_parallelism_threads=ncpu)
     tf.Session(config=config).__enter__()
 
-    n_env = 16
+    n_env = 1
     env = DummyVecEnv([make_env]*n_env)
 
     env = VecNormalize(env)
     seed = 10
     set_global_seeds(seed)
-    model = PPO2(policy="MlpLstmPolicy",
+    model = PPO2(policy="MlpPolicy",
                 env=env,
                 tensorboard_log="tb_log",
                 ent_coef=0.1,
-                n_steps=32//n_env,
-                nminibatches=16,
+                n_steps=64//n_env,
+                nminibatches=4,
                 noptepochs=10,
-                learning_rate=0.0001,
+                learning_rate=0.01,
                 cliprange=0.2,
-                gamma=0.999,
+                gamma=0.99,
                 verbose=1,
                 policy_kwargs={
-                    "net_arch": [32, 'lstm', dict(vf=[128, 32], pi=[128, 32])],
-                    "n_lstm": 32
+                    "net_arch": [128, dict(vf=[32], pi=[32])],
+                    #"n_lstm": 32
                 })
 
     def test(model):
         env = DummyVecEnv([make_env] * n_env)
-        env = VecNormalize.load("models/machine_span_env.bin", venv=env)
+        env = VecNormalize.load("models/machine_snap_env.bin", venv=env)
+        env.training = False
         for trial in range(10):
             obs = env.reset()
             running_reward = 0.0
@@ -99,7 +101,7 @@ def play(train=True):
 def main():
     logger.configure()
     #train()
-    play(train=False)
+    play(train=True)
 
 
 if __name__ == '__main__':
