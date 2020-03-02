@@ -19,6 +19,8 @@ import multiprocessing
 from environment import MachineProductionEnv
 
 
+GAMMA = 0.99
+
 def make_env():
     from lib import read_detail_tree, read_machine_detail
     machine_detail = read_machine_detail("data/machine_detail.txt")
@@ -40,29 +42,30 @@ def play(train=True):
     n_env = 1
     env = DummyVecEnv([make_env]*n_env)
 
-    env = VecNormalize(env)
+    #env = VecNormalize(env, gamma=GAMMA)
     seed = 10
     set_global_seeds(seed)
-    model = PPO2(policy="MlpPolicy",
+    model = A2C(policy="MlpPolicy",
                 env=env,
                 tensorboard_log="tb_log",
-                ent_coef=0.1,
-                n_steps=64//n_env,
-                nminibatches=4,
-                noptepochs=10,
-                learning_rate=0.01,
-                cliprange=0.2,
-                gamma=0.99,
+                ent_coef=0.01,
+                n_steps=32,
+                #nminibatches=4,
+                #noptepochs=10,
+                learning_rate=0.001,
+                #cliprange=0.2,
+                max_grad_norm=0.2,
+                gamma=GAMMA,
                 verbose=1,
                 policy_kwargs={
-                    "net_arch": [128, dict(vf=[32], pi=[32])],
+                    "net_arch": [16, dict(vf=[16], pi=[16])],
                     #"n_lstm": 32
                 })
 
     def test(model):
         env = DummyVecEnv([make_env] * n_env)
-        env = VecNormalize.load("models/machine_snap_env.bin", venv=env)
-        env.training = False
+        #env = VecNormalize.load("models/machine_snap_env.bin", venv=env)
+        #env.training = False
         for trial in range(10):
             obs = env.reset()
             running_reward = 0.0
@@ -83,10 +86,14 @@ def play(train=True):
                 else:
                     env.envs[0].render()
 
+    def callback(locals_, globals_):
+        import ipdb; ipdb.set_trace()
+        return True
+
 
     if train:
         try:
-            model.learn(total_timesteps=10_000_000, log_interval=10)
+            model.learn(total_timesteps=10_000_000, log_interval=50)
         except KeyboardInterrupt:
             model.save("models/machine_snap_model.bin")
             env.save("models/machine_snap_env.bin")
@@ -94,14 +101,14 @@ def play(train=True):
         model.save(f'models/machine_0_model.bin')
         env.save(f'models/machine_0_env.bin')
 
-    model = PPO2.load('models/machine_snap_model.bin')
+    model = A2C.load('models/machine_snap_model.bin')
     test(model)
 
 
 def main():
     logger.configure()
     #train()
-    play(train=True)
+    play(train=False)
 
 
 if __name__ == '__main__':
