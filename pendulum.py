@@ -45,7 +45,7 @@ def play(train=True):
     #env = VecNormalize(env, gamma=GAMMA)
     seed = 10
     set_global_seeds(seed)
-    model = DQN(policy="MlpPolicy",
+    model = DQN(policy="LnMlpPolicy",
                 env=env,
                 tensorboard_log="tb_log_new",
                 #n_steps=32,
@@ -58,7 +58,7 @@ def play(train=True):
                 gamma=GAMMA,
                 verbose=1,
                 policy_kwargs={
-                    #"net_arch": [16, dict(vf=[16], pi=[16])],
+                    #"net_arch": [128, 64, 32, 32, 32],
                     #"n_lstm": 32
                 })
 
