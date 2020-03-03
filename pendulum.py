@@ -19,21 +19,21 @@ import multiprocessing
 from environment import MachineProductionEnv
 
 
-GAMMA = 0.99
+GAMMA = 0.97
 
 def make_env():
     from lib import read_detail_tree, read_machine_detail
     machine_detail = read_machine_detail("data/machine_detail.txt")
     detail_tree = read_detail_tree("data/detail_tree.txt",
                                    machine_detail.shape[0])
-    #env = MachineProductionEnv(machine_detail, detail_tree)
-    env = gym.make('LunarLander-v2')
-    env = TimeLimit(env, 2000)
+    env = MachineProductionEnv(machine_detail, detail_tree)
+    #env = gym.make('LunarLander-v2')
+    env = TimeLimit(env, 1500)
     return env
 
 
 def play(train=True):
-    ncpu = 2
+    ncpu = 4
     config = tf.ConfigProto(allow_soft_placement=True,
                             intra_op_parallelism_threads=ncpu,
                             inter_op_parallelism_threads=ncpu)
@@ -45,20 +45,20 @@ def play(train=True):
     #env = VecNormalize(env, gamma=GAMMA)
     seed = 10
     set_global_seeds(seed)
-    model = A2C(policy="MlpPolicy",
+    model = DQN(policy="MlpPolicy",
                 env=env,
-                tensorboard_log="tb_log",
-                ent_coef=0.01,
-                n_steps=32,
+                tensorboard_log="tb_log_new",
+                #n_steps=32,
                 #nminibatches=4,
                 #noptepochs=10,
-                learning_rate=0.001,
+                learning_rate=0.0003,
+                exploration_fraction=0.3,
                 #cliprange=0.2,
-                max_grad_norm=0.2,
+                #max_grad_norm=0.2,
                 gamma=GAMMA,
                 verbose=1,
                 policy_kwargs={
-                    "net_arch": [16, dict(vf=[16], pi=[16])],
+                    #"net_arch": [16, dict(vf=[16], pi=[16])],
                     #"n_lstm": 32
                 })
 
@@ -66,7 +66,7 @@ def play(train=True):
         env = DummyVecEnv([make_env] * n_env)
         #env = VecNormalize.load("models/machine_snap_env.bin", venv=env)
         #env.training = False
-        for trial in range(10):
+        for trial in range(1):
             obs = env.reset()
             running_reward = 0.0
             alpha = 0.01
@@ -93,7 +93,7 @@ def play(train=True):
 
     if train:
         try:
-            model.learn(total_timesteps=10_000_000, log_interval=50)
+            model.learn(total_timesteps=3_000_000, log_interval=50)
         except KeyboardInterrupt:
             model.save("models/machine_snap_model.bin")
             env.save("models/machine_snap_env.bin")
@@ -101,14 +101,14 @@ def play(train=True):
         model.save(f'models/machine_0_model.bin')
         env.save(f'models/machine_0_env.bin')
 
-    model = A2C.load('models/machine_snap_model.bin')
+    model = DQN.load('models/machine_snap_model.bin')
     test(model)
 
 
 def main():
     logger.configure()
     #train()
-    play(train=False)
+    play(train=True)
 
 
 if __name__ == '__main__':

@@ -21,7 +21,7 @@ class MachineProductionEnv(gym.Env):
 
         self.d_count = machine_detail_time.shape[0]
         self.m_count = machine_detail_time.shape[1]
-        self.action_space = spaces.MultiDiscrete([self.d_count + 1]*self.m_count)
+        self.action_space = spaces.Discrete(1 + self.d_count * self.m_count)
 
         self.observation_space = spaces.Box(
             low=0,
@@ -48,12 +48,11 @@ class MachineProductionEnv(gym.Env):
         self.machine_busy = np.zeros((self.m_count, self.d_count), dtype=np.int)
 
         self.estimated_time = 0
-        while not (400 < self.estimated_time < 600):
-            print('reset not success', self.estimated_time)
-            #self.needed[0] = np.random.randint(1, 3)  # TODO: Read this from file
-            self.needed[1] = np.random.randint(1, 6)  # TODO: Read this from file
-            self.needed[2] = np.random.randint(1, 9)  # TODO: Read this from file
-            for i in range(1, 3):
+        for i in range(1):
+            self.needed[0] = np.random.randint(1, 4)  # TODO: Read this from file
+            self.needed[1] = np.random.randint(1, 4)  # TODO: Read this from file
+            self.needed[2] = np.random.randint(1, 4)  # TODO: Read this from file
+            for i in range(3):
                 self.produced[i] = np.random.randint(self.needed[i])  # TODO: Read this from file
             self._make_estimates()
         print('reset', self.needed, self.produced, self.estimated_time)
@@ -89,34 +88,31 @@ class MachineProductionEnv(gym.Env):
             reward += 1000
             print('done',
                   self.current_step,
-                  self.cumulative_reward,
+                  self.cumulative_reward + reward,
                   self.estimated_time)
-        obs = self._next_observation()
         self.cumulative_reward += reward
+        obs = self._next_observation()
         return obs, reward, done, {"cumulative_reward": self.cumulative_reward}
 
     def _take_action(self, action):
         reward = 0
-        for machine_id, detail_id in enumerate(action):
-            if detail_id == 0:
-                continue
-            detail_id -= 1
+        if action != 0:
+            action -= 1
+            machine_id, detail_id = action // self.d_count, action % self.d_count
             if self.machine_busy.sum(1)[machine_id]:
                 reward -= 1
-                continue
-            if (self.detail_tree[detail_id] > self.produced).any():
+            elif (self.detail_tree[detail_id] > self.produced).any():
                 reward -= 1
-                continue
+            else:
+                self.produced -= self.detail_tree[detail_id]
 
-            self.produced -= self.detail_tree[detail_id]
-
-#            reward += 1
-            ttc = self.machine_detail_time[detail_id, machine_id]
-            self.machine_busy[machine_id, detail_id] = 1
-            self.scheduled_for[machine_id] = ttc
-            self.detail_line.append([ttc,
-                                     detail_id,
-                                     machine_id])
+    #            reward += 1
+                ttc = self.machine_detail_time[detail_id, machine_id]
+                self.machine_busy[machine_id, detail_id] = 1
+                self.scheduled_for[machine_id] = ttc
+                self.detail_line.append([ttc,
+                                         detail_id,
+                                         machine_id])
         return reward
 
     def _produce(self):
